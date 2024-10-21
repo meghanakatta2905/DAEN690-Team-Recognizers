@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Code Identifier</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous">
+
+    <!-- Custom Stylesheet -->
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+<!-- Header Section with Images -->
+<header class="header">
+    <img src="/static/FDA-Social-Graphic.png" alt="FDA Logo" style="margin-left: 0px;" height="95px" width="500px">
+    <img src="/static/logo-precise.jpeg" alt="Precise Logo" style="margin-left: 600px;" height="95px" width="500px">
+</header>
+
+<!-- Main Card Section -->
+<div class="card-container">
+    <div class="content-wrapper">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-container mb-3">
+                        <h1 class="text-center mb-4">Product Code Identifier</h1>
+
+                        <!-- Upload Section for Multiple Images -->
+                        <div class="upload-block" id="uploadBlock">
+                            <span id="uploadLabelText" class="text-center mb-4">Upload the product label images</span>
+                            <input type="file" id="imageFiles" class="form-control mb-3" style="width: 40%;" multiple onchange="previewImages()">
+                            <button id="uploadButton" onclick="uploadFromFiles()" class="btn btn-upload">Upload</button>
+                        </div>
+
+                        <!-- Preview of Uploaded Images -->
+                        <div id="imagePreview" class="mb-3"></div>
+
+                        <!-- Subclass Checkbox -->
+                        <label class="form-check-label">
+                            Subclass:
+                            <input type="checkbox" id="subclassToggle" class="form-check-input" checked>
+                        </label>
+
+                        <!-- Output Section -->
+                        <label id="outputLabel" for="Product Code"><h3>FDA Product Code</h3></label>
+                        <div id="output" class="form-control">
+                            <div class="output-box-container">
+                                <div class="output-box">Industry
+                                    <div class="nested-placeholder">Industry Placeholder</div>
+                                </div>
+                                <div class="output-box">Class
+                                    <div class="nested-placeholder">Class Placeholder</div>
+                                </div>
+                                <div class="output-box">Subclass
+                                    <div class="nested-placeholder">Subclass Placeholder</div>
+                                </div>
+                                <div class="output-box">PIC
+                                    <div class="nested-placeholder">PIC Placeholder</div>
+                                </div>
+                                <div class="output-box">Product
+                                    <div class="nested-placeholder">Product Placeholder</div>
+                                </div>
+                            </div>
+                            <div class="output-box">FDA Code
+                                <div class="nested-placeholder">FDA Code Placeholder</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Footer Section with Mason Logo -->
+<footer class="footer">
+    &copy; 2024 <img src="/static/Mason.jpeg" alt="Mason Logo" height="15px" width="15px"> George Mason University. All Rights Reserved.
+</footer>
+
+<!-- JavaScript for File Upload and Handling Multiple Images -->
+<script>
+function previewImages() {
+    const fileInput = document.getElementById('imageFiles');
+    const previewContainer = document.getElementById('imagePreview');
+    previewContainer.innerHTML = ''; // Clear any existing previews
+
+    const files = fileInput.files;
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const reader = new FileReader();
+
+        reader.onload = function (e) {
+            // Create image element for preview
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            img.classList.add('img-thumbnail');
+            img.style.maxHeight = '150px'; // Limit preview size
+            img.style.margin = '10px';
+            previewContainer.appendChild(img);
+        };
+
+        reader.readAsDataURL(file); // Convert file to base64
+    }
+}
+
+function uploadFromFiles() {
+    const fileInput = document.getElementById('imageFiles');
+    const files = fileInput.files;
+
+    if (files.length === 0) {
+        alert('Please select at least one image.');
+        return;
+    }
+
+    // Change button text to "Processing"
+    const uploadButton = document.getElementById('uploadButton');
+    uploadButton.innerText = 'Processing...';
+    uploadButton.disabled = true;
+
+    // Read the state of the subclass toggle checkbox
+    const subclassToggle = document.getElementById('subclassToggle').checked;
+
+    // Process each file and convert to base64
+    let promises = [];
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const reader = new FileReader();
+        promises.push(new Promise((resolve, reject) => {
+            reader.onload = function (e) {
+                resolve(e.target.result.split(',')[1]); // Extract base64 string
+            };
+            reader.onerror = function (error) {
+                reject(error);
+            };
+            reader.readAsDataURL(file); // Convert file to base64
+        }));
+    }
+
+    // After all files are processed, send to backend
+    Promise.all(promises)
+        .then(base64Images => {
+            const requestBody = {
+                images_base64: base64Images,  // Send array of base64 images
+                include_subclass: subclassToggle // Send this flag to the server
+            };
+
+            fetch('/get_fda_code', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestBody),
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Update UI with received data
+                document.querySelector('.output-box-container .output-box:nth-child(1) .nested-placeholder').innerText = data.industry || 'N/A';
+                document.querySelector('.output-box-container .output-box:nth-child(2) .nested-placeholder').innerText = data.class || 'N/A';
+                document.querySelector('.output-box-container .output-box:nth-child(3) .nested-placeholder').innerText = subclassToggle ? data.subclass : 'No subclass provided';
+                document.querySelector('.output-box-container .output-box:nth-child(4) .nested-placeholder').innerText = data.PIC || 'N/A';
+                document.querySelector('.output-box-container .output-box:nth-child(5) .nested-placeholder').innerText = data.product || 'N/A';
+                document.querySelectorAll('.output-box .nested-placeholder')[5].innerText = data.fda_code || 'N/A';
+
+                // Reset button after processing is done
+                uploadButton.innerText = 'Upload';
+                uploadButton.disabled = false;
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+                alert('Failed to process the image. Please try again.');
+                uploadButton.innerText = 'Upload';  // Reset button text on error
+                uploadButton.disabled = false;
+            });
+        })
+        .catch(error => {
+            console.error('Error processing images:', error);
+            uploadButton.innerText = 'Upload';  // Reset button text on error
+            uploadButton.disabled = false;
+        });
+}
+</script>
+
+</body>
+</html>
